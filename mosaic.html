@@ -28,13 +28,13 @@
     #progress-bar { height: 100%; background: #fff; width: 0%; transition: width 0.3s; }
     #progress-label { font-size: 12px; color: #aaa; white-space: nowrap; }
     #hint-label { font-size: 11px; color: #555; white-space: nowrap; }
-    #download-btn {
+    #download-btn, #download-jpg-btn {
       padding: 6px 12px; border-radius: 4px; border: 1px solid #444;
       background: #1a6e2e; color: #fff; font-size: 12px;
       cursor: pointer; white-space: nowrap; flex-shrink: 0;
     }
-    #download-btn:hover { background: #155924; }
-    #download-btn:disabled { background: #333; color: #666; border-color: #333; cursor: not-allowed; }
+    #download-btn:hover, #download-jpg-btn:hover { background: #155924; }
+    #download-btn:disabled, #download-jpg-btn:disabled { background: #333; color: #666; border-color: #333; cursor: not-allowed; }
 
     #canvas-wrap {
       position: fixed; top: 48px; left: 0; right: 0; bottom: 0;
@@ -99,7 +99,8 @@
     <span id="progress-label">0 / 10 000</span>
   </div>
   <span id="hint-label">Scroll to zoom · Drag to pan · Click a Normie</span>
-  <button id="download-btn" disabled>⬇ Download PNG</button>
+  <button id="download-btn" disabled>⬇ PNG</button>
+  <button id="download-jpg-btn" disabled>⬇ JPG</button>
 </div>
 
 <div id="canvas-wrap">
@@ -305,26 +306,30 @@
   }
 
   // ── Download ───────────────────────────────────────────
-  document.getElementById('download-btn').addEventListener('click', () => {
-    const btn = document.getElementById('download-btn');
+  function downloadMosaic(format) {
+    const btnId = format === 'jpg' ? 'download-jpg-btn' : 'download-btn';
+    const btn   = document.getElementById(btnId);
     btn.disabled = true;
     btn.textContent = 'Preparing…';
-
-    // Use a timeout so the UI updates before the heavy toDataURL call
     setTimeout(() => {
+      const mime    = format === 'jpg' ? 'image/jpeg' : 'image/png';
       const link    = document.createElement('a');
-      link.download = 'normies-mosaic-10k.png';
-      link.href     = canvas.toDataURL('image/png');
+      link.download = `normies-mosaic-10k.${format}`;
+      link.href     = canvas.toDataURL(mime, 1.0);
       link.click();
       btn.disabled = false;
-      btn.textContent = '⬇ Download PNG';
+      btn.textContent = format === 'jpg' ? '⬇ JPG' : '⬇ PNG';
     }, 50);
-  });
+  }
+
+  document.getElementById('download-btn').addEventListener('click',     () => downloadMosaic('png'));
+  document.getElementById('download-jpg-btn').addEventListener('click', () => downloadMosaic('jpg'));
 
   // Enable download button when all loaded
   function checkAllLoaded() {
     if (loaded >= TOTAL) {
-      document.getElementById('download-btn').disabled = false;
+      document.getElementById('download-btn').disabled     = false;
+      document.getElementById('download-jpg-btn').disabled = false;
     }
   }
 
