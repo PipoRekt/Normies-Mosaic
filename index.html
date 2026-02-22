@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Normies Pixel Mixer</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #e5e5e5; color: #111;
+      display: flex; flex-direction: column; align-items: center; min-height: 100vh;
+    }
+    header { margin-top: 40px; margin-bottom: 20px; text-align: center; }
+    h1 {
+      font-family: "Courier New", monospace;
+      letter-spacing: 0.25em; text-transform: lowercase;
+      font-weight: 400; margin: 0;
+    }
+    main { display: flex; gap: 40px; flex-wrap: wrap; justify-content: center; padding: 20px; }
+    .panel {
+      background: #f3f3f3; border-radius: 8px;
+      padding: 16px 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      min-width: 300px; max-width: 360px;
+    }
+    .panel h2 { font-size: 16px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; }
+    label { font-size: 13px; display: block; margin-bottom: 4px; }
+    .input-row { display: flex; gap: 6px; margin-bottom: 6px; }
+    .input-row input { flex: 1; margin-bottom: 0; }
+    input[type="number"] {
+      width: 100%; padding: 6px 8px;
+      border-radius: 4px; border: 1px solid #bbb;
+      font-size: 13px; margin-bottom: 8px; background: #fff;
+    }
+    button {
+      padding: 6px 12px; border-radius: 4px; border: none;
+      background: #222; color: #f5f5f5; font-size: 13px;
+      cursor: pointer; white-space: nowrap;
+    }
+    button:hover { background: #000; }
+    button:disabled { background: #aaa; cursor: not-allowed; }
+
+    #preview-status { font-size: 12px; color: #888; margin-bottom: 6px; min-height: 18px; }
+    #preview-status.error   { color: #c00; }
+    #preview-status.success { color: #270; }
+
+    #normie-preview {
+      display: none; background: #fff;
+      border: 1px solid #ddd; border-radius: 6px;
+      padding: 10px; margin-bottom: 10px;
+      gap: 10px; align-items: center;
+    }
+    #normie-preview.visible { display: flex; }
+    #preview-img {
+      width: 56px; height: 56px; border-radius: 4px;
+      object-fit: contain; background: #eee;
+      image-rendering: pixelated; flex-shrink: 0;
+    }
+    #preview-name  { font-weight: 600; font-size: 13px; }
+    #preview-pixels { color: #444; font-size: 12px; margin-top: 2px; }
+
+    .add-btn-row { display: flex; justify-content: flex-end; margin-bottom: 4px; }
+    .pixels-total { margin-top: 10px; font-size: 14px; font-weight: 600; }
+
+    .inventory-list { margin-top: 10px; font-size: 13px; max-height: 220px; overflow-y: auto; }
+    .inventory-item {
+      display: flex; align-items: center;
+      gap: 8px; border-bottom: 1px dashed #ccc; padding: 5px 0;
+    }
+    .inventory-thumb {
+      width: 28px; height: 28px; border-radius: 3px;
+      image-rendering: pixelated; object-fit: contain;
+      background: #ddd; flex-shrink: 0;
+    }
+    .inventory-id { font-family: "Courier New", monospace; flex: 1; }
+    .inventory-px { color: #555; font-size: 12px; white-space: nowrap; }
+
+    /* Canvas panel */
+    .canvas-panel { max-width: none; }
+    .canvas-wrapper { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    canvas { border: 1px solid #999; background: #fff; image-rendering: pixelated; cursor: crosshair; max-width: 100%; }
+    .hint { font-size: 12px; color: #555; max-width: 420px; text-align: center; }
+
+    /* Size selector */
+    .size-selector { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+    .size-btn {
+      padding: 5px 10px; border-radius: 4px; border: 1px solid #bbb;
+      background: #fff; color: #333; font-size: 12px;
+      cursor: pointer; font-family: "Courier New", monospace;
+    }
+    .size-btn:hover { background: #eee; border-color: #999; }
+    .size-btn.active { background: #222; color: #fff; border-color: #222; }
+
+    /* Canvas actions */
+    .canvas-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+    .btn-download { background: #1a6e2e; }
+    .btn-download:hover { background: #155924; }
+
+    .spinner {
+      display: inline-block; width: 10px; height: 10px;
+      border: 2px solid #bbb; border-top-color: #555;
+      border-radius: 50%; animation: spin 0.6s linear infinite;
+      vertical-align: middle; margin-right: 4px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<header>
+  <h1>nørmies</h1>
+  <div style="font-size:12px;color:#555;margin-top:4px;" id="subtitle">
+    Pixel mixer — inventory &amp; 40×40 canvas
+  </div>
+</header>
+
+<main>
+  <!-- Inventory panel -->
+  <section class="panel">
+    <h2>Normies Inventory</h2>
+
+    <label for="normie-id">Normie Number</label>
+    <div class="input-row">
+      <input type="number" id="normie-id" placeholder="e.g. 1234" min="0" max="9999" />
+      <button id="lookup-btn">Search</button>
+    </div>
+
+    <div id="preview-status"></div>
+
+    <div id="normie-preview">
+      <img id="preview-img" src="" alt="Normie" />
+      <div>
+        <div id="preview-name">—</div>
+        <div id="preview-pixels">—</div>
+      </div>
+    </div>
+
+    <div class="add-btn-row">
+      <button id="add-normie" disabled>Add to inventory</button>
+    </div>
+
+    <div class="pixels-total">
+      Pixels in stock: <span id="pixels-total">0</span>
+    </div>
+    <div class="inventory-list" id="inventory-list"></div>
+  </section>
+
+  <!-- Canvas panel -->
+  <section class="panel canvas-panel">
+    <h2 id="canvas-title">Canvas 40×40</h2>
+
+    <div class="size-selector">
+      <button class="size-btn active" data-size="40">40×40</button>
+      <button class="size-btn" data-size="60">60×60</button>
+      <button class="size-btn" data-size="80">80×80</button>
+      <button class="size-btn" data-size="100">100×100</button>
+    </div>
+
+    <div class="canvas-wrapper">
+      <canvas id="pixel-canvas"></canvas>
+      <div class="hint">
+        Click to place / remove a pixel.<br/>
+        Each placed pixel costs 1 point from your stock.
+      </div>
+      <div class="canvas-actions">
+        <button id="download-png" class="btn-download">⬇ PNG</button>
+        <button id="download-jpg" class="btn-download">⬇ JPG</button>
+        <button id="clear-canvas">Clear</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  // ── State ──────────────────────────────────────────────
+  let inventory     = [];
+  let pixelsTotal   = 0;
+  let pixelsUsed    = 0;
+  let pendingNormie = null;
+
+  // ── Canvas state ───────────────────────────────────────
+  let gridSize    = 40;
+  const DISPLAY   = 400;
+  let scale       = DISPLAY / gridSize;
+  let grid        = makeGrid(gridSize);
+
+  function makeGrid(size) {
+    return Array.from({ length: size }, () => new Array(size).fill(0));
+  }
+
+  // ── DOM refs ───────────────────────────────────────────
+  const idInput     = document.getElementById('normie-id');
+  const lookupBtn   = document.getElementById('lookup-btn');
+  const addBtn      = document.getElementById('add-normie');
+  const totalSpan   = document.getElementById('pixels-total');
+  const invList     = document.getElementById('inventory-list');
+  const previewCard = document.getElementById('normie-preview');
+  const previewImg  = document.getElementById('preview-img');
+  const previewName = document.getElementById('preview-name');
+  const previewPx   = document.getElementById('preview-pixels');
+  const statusEl    = document.getElementById('preview-status');
+  const canvas      = document.getElementById('pixel-canvas');
+  const ctx         = canvas.getContext('2d');
+  const subtitle    = document.getElementById('subtitle');
+  const canvasTitle = document.getElementById('canvas-title');
+
+  canvas.width  = DISPLAY;
+  canvas.height = DISPLAY;
+  drawCanvas();
+
+  // ── Size selector ──────────────────────────────────────
+  document.querySelectorAll('.size-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const newSize = parseInt(btn.dataset.size, 10);
+      if (newSize === gridSize) return;
+      if (pixelsUsed > 0 && !confirm('Changing size will clear the canvas. Continue?')) return;
+
+      gridSize   = newSize;
+      scale      = DISPLAY / gridSize;
+      grid       = makeGrid(gridSize);
+      pixelsUsed = 0;
+      updatePixelsDisplay();
+      drawCanvas();
+
+      document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      canvasTitle.textContent  = `Canvas ${gridSize}×${gridSize}`;
+      subtitle.innerHTML = `Pixel mixer — inventory &amp; ${gridSize}×${gridSize} canvas`;
+    });
+  });
+
+  // ── Lookup ─────────────────────────────────────────────
+  lookupBtn.addEventListener('click', lookup);
+  idInput.addEventListener('keydown', e => { if (e.key === 'Enter') lookup(); });
+
+  async function lookup() {
+    const raw     = idInput.value.toString().trim().replace(/^#/, '');
+    const tokenId = parseInt(raw, 10);
+
+    if (isNaN(tokenId) || tokenId < 0 || tokenId > 9999) {
+      setStatus('Invalid number (0 – 9999)', 'error'); return;
+    }
+
+    setStatus('<span class="spinner"></span>Looking up on-chain…', '');
+    lookupBtn.disabled = true;
+    addBtn.disabled    = true;
+    previewCard.classList.remove('visible');
+    pendingNormie = null;
+
+    try {
+      const res  = await fetch(`/api/normie?id=${tokenId}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Server error');
+
+      const { name, pixelCount, imageUrl } = data;
+      pendingNormie           = { id: `#${tokenId}`, name, pixels: pixelCount, imageUrl };
+      previewImg.src          = imageUrl;
+      previewName.textContent = name;
+      previewPx.textContent   = pixelCount ? `${pixelCount} pixels` : 'Pixel Count not found';
+      previewCard.classList.add('visible');
+      setStatus(`✓ ${name} found!`, 'success');
+      addBtn.disabled = false;
+    } catch (err) {
+      console.error(err);
+      setStatus('Error: ' + err.message, 'error');
+    }
+    lookupBtn.disabled = false;
+  }
+
+  function setStatus(html, cls) {
+    statusEl.innerHTML = html;
+    statusEl.className = cls || '';
+  }
+
+  // ── Add to inventory ───────────────────────────────────
+  addBtn.addEventListener('click', () => {
+    if (!pendingNormie) return;
+    if (inventory.find(i => i.id === pendingNormie.id)) {
+      setStatus(`${pendingNormie.name} is already in the inventory.`, 'error'); return;
+    }
+    inventory.push({ ...pendingNormie });
+    pixelsTotal += pendingNormie.pixels || 0;
+    pendingNormie = null;
+    addBtn.disabled = true;
+    previewCard.classList.remove('visible');
+    idInput.value = '';
+    setStatus('');
+    renderInventory();
+    updatePixelsDisplay();
+  });
+
+  function renderInventory() {
+    invList.innerHTML = '';
+    inventory.forEach(item => {
+      const div    = document.createElement('div');
+      div.className = 'inventory-item';
+      const img    = document.createElement('img');
+      img.src = item.imageUrl; img.className = 'inventory-thumb'; img.alt = item.name;
+      const idSpan = document.createElement('span');
+      idSpan.className = 'inventory-id'; idSpan.textContent = item.id;
+      const pxSpan = document.createElement('span');
+      pxSpan.className = 'inventory-px'; pxSpan.textContent = (item.pixels || 0) + ' px';
+      div.appendChild(img); div.appendChild(idSpan); div.appendChild(pxSpan);
+      invList.appendChild(div);
+    });
+  }
+
+  function updatePixelsDisplay() {
+    totalSpan.textContent = Math.max(0, pixelsTotal - pixelsUsed);
+  }
+
+  // ── Draw canvas ────────────────────────────────────────
+  function drawCanvas() {
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, DISPLAY, DISPLAY);
+    ctx.strokeStyle = '#ddd'; ctx.lineWidth = 0.5;
+    for (let i = 0; i <= gridSize; i++) {
+      const p = i * scale;
+      ctx.beginPath(); ctx.moveTo(p, 0);      ctx.lineTo(p, DISPLAY); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, p);      ctx.lineTo(DISPLAY, p); ctx.stroke();
+    }
+    ctx.fillStyle = '#222';
+    for (let y = 0; y < gridSize; y++)
+      for (let x = 0; x < gridSize; x++)
+        if (grid[y][x]) ctx.fillRect(x * scale, y * scale, scale, scale);
+  }
+
+  // ── Canvas click ───────────────────────────────────────
+  canvas.addEventListener('click', e => {
+    const rect   = canvas.getBoundingClientRect();
+    const scaleX = DISPLAY / rect.width;
+    const scaleY = DISPLAY / rect.height;
+    const x = Math.floor((e.clientX - rect.left) * scaleX / scale);
+    const y = Math.floor((e.clientY - rect.top)  * scaleY / scale);
+    if (x < 0 || y < 0 || x >= gridSize || y >= gridSize) return;
+
+    if (grid[y][x] === 0) {
+      if (pixelsTotal - pixelsUsed <= 0) { alert('No pixels left in stock!'); return; }
+      grid[y][x] = 1; pixelsUsed++;
+    } else {
+      grid[y][x] = 0; if (pixelsUsed > 0) pixelsUsed--;
+    }
+    updatePixelsDisplay(); drawCanvas();
+  });
+
+  // ── Clear ──────────────────────────────────────────────
+  document.getElementById('clear-canvas').addEventListener('click', () => {
+    if (pixelsUsed > 0 && !confirm('Clear the canvas?')) return;
+    grid = makeGrid(gridSize);
+    pixelsUsed = 0;
+    updatePixelsDisplay(); drawCanvas();
+  });
+
+  // ── Download PNG / JPG ─────────────────────────────────
+  function exportCanvas(format) {
+    // Export at high resolution: each cell = 20px → 40x40 = 800x800, 100x100 = 2000x2000
+    const CELL   = 20;
+    const size   = gridSize * CELL;
+    const exp    = document.createElement('canvas');
+    exp.width    = size;
+    exp.height   = size;
+    const ectx   = exp.getContext('2d');
+
+    // White background
+    ectx.fillStyle = '#ffffff';
+    ectx.fillRect(0, 0, size, size);
+
+    // Draw pixels — crisp, no anti-aliasing
+    ectx.imageSmoothingEnabled = false;
+    ectx.fillStyle = '#222222';
+    for (let y = 0; y < gridSize; y++)
+      for (let x = 0; x < gridSize; x++)
+        if (grid[y][x]) ectx.fillRect(x * CELL, y * CELL, CELL, CELL);
+
+    const mime    = format === 'jpg' ? 'image/jpeg' : 'image/png';
+    const quality = format === 'jpg' ? 1.0 : undefined;
+    const link    = document.createElement('a');
+    link.download = `normies-${gridSize}x${gridSize}-hq.${format}`;
+    link.href     = exp.toDataURL(mime, quality);
+    link.click();
+  }
+
+  document.getElementById('download-png').addEventListener('click', () => exportCanvas('png'));
+  document.getElementById('download-jpg').addEventListener('click', () => exportCanvas('jpg'));
+</script>
+</body>
+</html>
